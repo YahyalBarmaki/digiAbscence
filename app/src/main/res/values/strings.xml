@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">gesAbsence</string>
+
+    <!-- Role selection -->
+    <string name="role_title">Choisir un mode</string>
+    <string name="role_subtitle">Sélectionnez votre rôle pour cette session.</string>
+    <string name="role_teacher">Professeur</string>
+    <string name="role_teacher_desc">Lancer un appel et diffuser la session en Bluetooth.</string>
+    <string name="role_student">Élève</string>
+    <string name="role_student_desc">Détecter le cours et confirmer ma présence.</string>
+    <string name="change_role">Changer de mode</string>
+
+    <!-- Teacher -->
+    <string name="teacher_title">Mode Professeur</string>
+    <string name="teacher_start">Démarrer l\'appel</string>
+    <string name="teacher_stop">Arrêter l\'appel</string>
+    <string name="teacher_idle">Aucune session en cours.</string>
+    <string name="teacher_session_label">Session active</string>
+
+    <!-- Student -->
+    <string name="student_title">Mode Élève</string>
+    <string name="student_scan_start">Activer la détection</string>
+    <string name="student_scan_stop">Arrêter la détection</string>
+    <string name="student_idle">En attente d\'un cours à proximité…</string>
+    <string name="student_confirm">Confirmer ma présence</string>
+    <string name="student_confirmed">Présence confirmée</string>
+
+    <!-- Permissions -->
+    <string name="perm_rationale_title">Autorisations Bluetooth requises</string>
+    <string name="perm_rationale_body">L\'application a besoin du Bluetooth (et des notifications) pour détecter ou diffuser une session de présence, sans aucun déplacement en classe.</string>
+    <string name="perm_grant">Autoriser</string>
+    <string name="perm_open_settings">Ouvrir les paramètres</string>
+</resources>

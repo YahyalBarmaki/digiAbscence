@@ -1,0 +1,14 @@
+# Built files
+*.iml
+.gradle
+/local.properties
+/.idea
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+/app/google-services.json
+functions/node_modules
+functions/lib
+dashboard/node_modules
