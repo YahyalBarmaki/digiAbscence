@@ -1,44 +1,87 @@
 package sn.uadb.gesabscence.ui.teacher
 
-import androidx.lifecycle.ViewModel
-import sn.uadb.gesabscence.util.SessionId
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import sn.uadb.gesabscence.ble.AdvertiserStatus
+import sn.uadb.gesabscence.ble.AdvertiserStatusBus
+import sn.uadb.gesabscence.ble.BleAdvertiserService
+import sn.uadb.gesabscence.util.SessionId
 
 data class TeacherUiState(
     val isAdvertising: Boolean = false,
+    val isStarting: Boolean = false,
     val sessionId: String? = null,
     val startedAtMillis: Long? = null,
+    val errorMessage: String? = null,
 )
 
 /**
- * Module 1: owns the Teacher-mode UI state and the session lifecycle
- * (generate id / start / stop). The real BLE advertiser is plugged in
- * here in Module 2.
+ * Module 2: owns the Teacher session lifecycle and drives the foreground
+ * [BleAdvertiserService]. UI state is derived from a local "intent" flow
+ * (which session the teacher asked to run) combined with the real advertiser
+ * status coming back from [AdvertiserStatusBus].
  */
-class TeacherViewModel : ViewModel() {
+class TeacherViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val _uiState = MutableStateFlow(TeacherUiState())
-    val uiState: StateFlow<TeacherUiState> = _uiState.asStateFlow()
+    private data class LocalState(
+        val sessionId: String? = null,
+        val startedAtMillis: Long? = null,
+    )
+
+    private val local = MutableStateFlow(LocalState())
+
+    val uiState: StateFlow<TeacherUiState> =
+        combine(local, AdvertiserStatusBus.status) { l, status ->
+            when (status) {
+                AdvertiserStatus.Idle -> TeacherUiState(
+                    sessionId = l.sessionId,
+                    startedAtMillis = l.startedAtMillis,
+                )
+
+                AdvertiserStatus.Starting -> TeacherUiState(
+                    isStarting = true,
+                    sessionId = l.sessionId,
+                    startedAtMillis = l.startedAtMillis,
+                )
+
+                is AdvertiserStatus.Advertising -> TeacherUiState(
+                    isAdvertising = true,
+                    sessionId = status.sessionId,
+                    startedAtMillis = l.startedAtMillis,
+                )
+
+                is AdvertiserStatus.Error -> TeacherUiState(
+                    sessionId = l.sessionId,
+                    startedAtMillis = l.startedAtMillis,
+                    errorMessage = status.reason,
+                )
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TeacherUiState())
 
     fun startSession() {
-        if (_uiState.value.isAdvertising) return
-        _uiState.update {
-            it.copy(
-                isAdvertising = true,
-                sessionId = SessionId.generate(),
-                startedAtMillis = System.currentTimeMillis(),
-            )
-        }
-        // TODO(Module 2): start BleAdvertiser with uiState.value.sessionId
+        if (uiState.value.isAdvertising || uiState.value.isStarting) return
+        val sessionId = SessionId.generate()
+        local.value = LocalState(sessionId = sessionId, startedAtMillis = System.currentTimeMillis())
+        BleAdvertiserService.start(getApplication(), sessionId)
+        // TODO(Module 5): create the session document in Firestore
     }
 
     fun stopSession() {
-        if (!_uiState.value.isAdvertising) return
-        _uiState.update { it.copy(isAdvertising = false) }
-        // TODO(Module 2): stop BleAdvertiser
+        BleAdvertiserService.stop(getApplication())
+        local.value = LocalState()
+        AdvertiserStatusBus.update(AdvertiserStatus.Idle)
         // TODO(Module 5): call the "close session" Cloud Function
+    }
+
+    fun dismissError() {
+        if (AdvertiserStatusBus.status.value is AdvertiserStatus.Error) {
+            AdvertiserStatusBus.update(AdvertiserStatus.Idle)
+        }
     }
 }

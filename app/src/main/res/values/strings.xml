@@ -16,7 +16,11 @@
     <string name="teacher_start">Démarrer l\'appel</string>
     <string name="teacher_stop">Arrêter l\'appel</string>
     <string name="teacher_idle">Aucune session en cours.</string>
+    <string name="teacher_starting">Démarrage de la diffusion…</string>
     <string name="teacher_session_label">Session active</string>
+    <string name="teacher_advertising_hint">Les élèves à proximité peuvent maintenant confirmer leur présence.</string>
+    <string name="notif_advertising_text">Diffusion de la session %1$s en Bluetooth</string>
+    <string name="dismiss">OK</string>
 
     <!-- Student -->
     <string name="student_title">Mode Élève</string>

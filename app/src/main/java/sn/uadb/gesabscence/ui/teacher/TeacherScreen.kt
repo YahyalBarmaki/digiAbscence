@@ -5,13 +5,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -69,31 +72,71 @@ fun TeacherScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Text(
                             text = stringResource(R.string.teacher_session_label),
                             style = MaterialTheme.typography.labelMedium,
                         )
                         Text(
-                            text = state.sessionId?.takeIf { state.isAdvertising }
-                                ?: stringResource(R.string.teacher_idle),
+                            text = when {
+                                state.isAdvertising && state.sessionId != null -> state.sessionId!!
+                                state.isStarting -> stringResource(R.string.teacher_starting)
+                                else -> stringResource(R.string.teacher_idle)
+                            },
                             style = MaterialTheme.typography.headlineSmall,
                         )
+                        if (state.isAdvertising) {
+                            Text(
+                                text = stringResource(R.string.teacher_advertising_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+
+                state.errorMessage?.let { message ->
+                    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = message,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            OutlinedButton(onClick = viewModel::dismissError) {
+                                Text(stringResource(R.string.dismiss))
+                            }
+                        }
                     }
                 }
 
                 Button(
                     onClick = {
-                        if (state.isAdvertising) viewModel.stopSession() else viewModel.startSession()
+                        if (state.isAdvertising || state.isStarting) viewModel.stopSession()
+                        else viewModel.startSession()
                     },
+                    enabled = !state.isStarting,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(
-                        stringResource(
-                            if (state.isAdvertising) R.string.teacher_stop else R.string.teacher_start
+                    if (state.isStarting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
                         )
-                    )
+                    } else {
+                        Text(
+                            stringResource(
+                                if (state.isAdvertising) R.string.teacher_stop
+                                else R.string.teacher_start
+                            )
+                        )
+                    }
                 }
             }
         }
