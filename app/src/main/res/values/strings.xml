@@ -27,8 +27,15 @@
     <string name="student_scan_start">Activer la détection</string>
     <string name="student_scan_stop">Arrêter la détection</string>
     <string name="student_idle">En attente d\'un cours à proximité…</string>
+    <string name="student_scanning">Recherche d\'un cours…</string>
     <string name="student_confirm">Confirmer ma présence</string>
     <string name="student_confirmed">Présence confirmée</string>
+    <string name="student_threshold_label">Seuil de proximité : %1$d dBm</string>
+    <string name="student_threshold_help">Plus la valeur est proche de 0, plus l\'élève doit être près du professeur.</string>
+
+    <string name="notif_scanning_text">Recherche d\'un cours à proximité…</string>
+    <string name="notif_detected_title">Cours détecté</string>
+    <string name="notif_detected_text">Confirmer ma présence</string>
 
     <!-- Permissions -->
     <string name="perm_rationale_title">Autorisations Bluetooth requises</string>
