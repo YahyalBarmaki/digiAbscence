@@ -2,9 +2,13 @@ package sn.uadb.gesabscence.ui.student
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
@@ -14,24 +18,31 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import sn.uadb.gesabscence.R
 import sn.uadb.gesabscence.ble.BlePermissions
 import sn.uadb.gesabscence.ui.PermissionGate
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,42 +77,24 @@ fun StudentScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        val detected = state.detectedSessionId
-                        Text(
-                            text = when {
-                                state.presenceConfirmed -> stringResource(R.string.student_confirmed)
-                                detected != null -> detected
-                                state.isScanning -> stringResource(R.string.student_scanning)
-                                else -> stringResource(R.string.student_idle)
-                            },
-                            style = MaterialTheme.typography.headlineSmall,
-                        )
-                        state.lastRssi?.let { rssi ->
-                            Text(
-                                text = "RSSI $rssi dBm  (seuil ${state.rssiThreshold})",
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        }
-                    }
-                }
+                IdentityCard(
+                    studentId = state.studentId,
+                    onSave = viewModel::setStudentId,
+                )
+
+                DetectionCard(state)
 
                 ThresholdControl(
                     threshold = state.rssiThreshold,
                     onThresholdChange = viewModel::setRssiThreshold,
                 )
 
-                state.errorMessage?.let { message ->
+                val error = state.scanError ?: state.confirmError
+                error?.let { message ->
                     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
                         Column(
                             modifier = Modifier
@@ -135,12 +128,126 @@ fun StudentScreen(
 
                 OutlinedButton(
                     onClick = viewModel::confirmPresence,
-                    enabled = state.detectedSessionId != null &&
-                        !state.presenceConfirmed &&
-                        !state.confirmInFlight,
+                    enabled = state.canConfirm,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(stringResource(R.string.student_confirm))
+                    Text(
+                        stringResource(
+                            if (state.presenceConfirmed) R.string.student_confirmed
+                            else R.string.student_confirm
+                        )
+                    )
+                }
+
+                if (state.studentId.isNullOrBlank()) {
+                    Text(
+                        text = stringResource(R.string.student_identity_missing),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetectionCard(state: StudentUiState) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            val detected = state.detectedSessionId
+            Text(
+                text = when {
+                    state.presenceConfirmed -> stringResource(R.string.student_confirmed)
+                    detected != null -> detected
+                    state.isScanning -> stringResource(R.string.student_scanning)
+                    else -> stringResource(R.string.student_idle)
+                },
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            state.lastRssi?.let { rssi ->
+                Text(
+                    text = "RSSI $rssi dBm  (seuil ${state.rssiThreshold})",
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            state.confirmedAtMillis?.let { millis ->
+                Text(
+                    text = stringResource(R.string.student_confirmed_at, TIME_FORMAT.format(Date(millis))),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun IdentityCard(
+    studentId: String?,
+    onSave: (String) -> Unit,
+) {
+    var editing by remember(studentId) { mutableStateOf(studentId.isNullOrBlank()) }
+    var field by remember(studentId) { mutableStateOf(studentId.orEmpty()) }
+
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.student_identity_label),
+                style = MaterialTheme.typography.labelLarge,
+            )
+
+            if (editing) {
+                OutlinedTextField(
+                    value = field,
+                    onValueChange = { field = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.student_identity_hint)) },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            onSave(field)
+                            editing = false
+                        },
+                        enabled = field.isNotBlank() && field.trim() != studentId,
+                    ) {
+                        Text(stringResource(R.string.student_identity_save))
+                    }
+                    if (!studentId.isNullOrBlank()) {
+                        TextButton(onClick = {
+                            field = studentId
+                            editing = false
+                        }) {
+                            Text(stringResource(R.string.dismiss))
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = studentId.orEmpty(),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    TextButton(onClick = { editing = true }) {
+                        Text(stringResource(R.string.student_identity_edit))
+                    }
                 }
             }
         }
@@ -152,7 +259,6 @@ private fun ThresholdControl(
     threshold: Int,
     onThresholdChange: (Int) -> Unit,
 ) {
-    // Local drag value so the slider stays smooth; commit on release.
     var dragValue by remember(threshold) { mutableFloatStateOf(threshold.toFloat()) }
 
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
@@ -179,3 +285,5 @@ private fun ThresholdControl(
         }
     }
 }
+
+private val TIME_FORMAT = SimpleDateFormat("HH:mm:ss", Locale.getDefault())

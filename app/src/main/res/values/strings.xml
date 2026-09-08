@@ -32,6 +32,12 @@
     <string name="student_confirmed">Présence confirmée</string>
     <string name="student_threshold_label">Seuil de proximité : %1$d dBm</string>
     <string name="student_threshold_help">Plus la valeur est proche de 0, plus l\'élève doit être près du professeur.</string>
+    <string name="student_identity_label">Identité de l\'élève</string>
+    <string name="student_identity_hint">Matricule ou nom</string>
+    <string name="student_identity_save">Enregistrer</string>
+    <string name="student_identity_edit">Modifier</string>
+    <string name="student_identity_missing">Renseignez votre identité pour pouvoir confirmer votre présence.</string>
+    <string name="student_confirmed_at">Présence confirmée à %1$s</string>
 
     <string name="notif_scanning_text">Recherche d\'un cours à proximité…</string>
     <string name="notif_detected_title">Cours détecté</string>

@@ -14,31 +14,47 @@ import kotlinx.coroutines.launch
 import sn.uadb.gesabscence.ble.BleScannerService
 import sn.uadb.gesabscence.ble.ScannerStatus
 import sn.uadb.gesabscence.ble.ScannerStatusBus
+import sn.uadb.gesabscence.data.ConfirmResult
+import sn.uadb.gesabscence.data.LocalPresenceRepository
+import sn.uadb.gesabscence.data.PresenceRepository
 import sn.uadb.gesabscence.data.RolePreferences
 
 data class StudentUiState(
+    val studentId: String? = null,
     val isScanning: Boolean = false,
     val detectedSessionId: String? = null,
     val lastRssi: Int? = null,
     val rssiThreshold: Int = RolePreferences.DEFAULT_RSSI,
     val presenceConfirmed: Boolean = false,
+    val confirmedAtMillis: Long? = null,
     val confirmInFlight: Boolean = false,
-    val errorMessage: String? = null,
-)
+    val confirmError: String? = null,
+    val scanError: String? = null,
+) {
+    val canConfirm: Boolean
+        get() = !studentId.isNullOrBlank() &&
+            detectedSessionId != null &&
+            !presenceConfirmed &&
+            !confirmInFlight
+}
 
 /**
- * Module 3: drives the foreground [BleScannerService], exposes the tunable
- * RSSI threshold (persisted in [RolePreferences]), and reflects detections
- * coming back on [ScannerStatusBus].
+ * Module 4: real presence confirmation. On tap we send
+ * student_id + session_id + timestamp to [PresenceRepository]; the button is
+ * then locked for that session (anti-doublon), a lock that also survives a
+ * relaunch because the repository persists confirmed keys.
  */
 class StudentViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = RolePreferences(app)
+    private val repo: PresenceRepository = LocalPresenceRepository(app)
 
     private data class Local(
         val scanRequested: Boolean = false,
         val presenceConfirmed: Boolean = false,
+        val confirmedAtMillis: Long? = null,
         val confirmInFlight: Boolean = false,
+        val confirmError: String? = null,
     )
 
     private val local = MutableStateFlow(Local())
@@ -48,11 +64,15 @@ class StudentViewModel(app: Application) : AndroidViewModel(app) {
             local,
             ScannerStatusBus.status,
             prefs.rssiThreshold,
-        ) { l, status, threshold ->
+            prefs.studentId,
+        ) { l, status, threshold, studentId ->
             val base = StudentUiState(
+                studentId = studentId,
                 rssiThreshold = threshold,
                 presenceConfirmed = l.presenceConfirmed,
+                confirmedAtMillis = l.confirmedAtMillis,
                 confirmInFlight = l.confirmInFlight,
+                confirmError = l.confirmError,
             )
             when (status) {
                 ScannerStatus.Idle -> base.copy(isScanning = false)
@@ -65,33 +85,40 @@ class StudentViewModel(app: Application) : AndroidViewModel(app) {
 
                 is ScannerStatus.Error -> base.copy(
                     isScanning = false,
-                    errorMessage = status.reason,
+                    scanError = status.reason,
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StudentUiState())
 
+    private var lastResolvedSession: String? = null
+
     init {
-        // Reset the one-shot confirm gate whenever a different session appears.
-        ScannerStatusBus.status
-            .onEach { status ->
-                if (status is ScannerStatus.CourseDetected &&
-                    status.sessionId != lastKnownSession
-                ) {
-                    lastKnownSession = status.sessionId
-                    local.value = local.value.copy(presenceConfirmed = false)
-                }
+        // When a (new) session comes into range, reconcile the confirm lock
+        // with what the repository already knows for this student.
+        combine(prefs.studentId, ScannerStatusBus.status) { sid, status -> sid to status }
+            .onEach { (sid, status) ->
+                if (status !is ScannerStatus.CourseDetected) return@onEach
+                if (status.sessionId == lastResolvedSession) return@onEach
+                lastResolvedSession = status.sessionId
+                val already = !sid.isNullOrBlank() && repo.isConfirmed(sid, status.sessionId)
+                local.value = local.value.copy(
+                    presenceConfirmed = already,
+                    confirmedAtMillis = null,
+                    confirmError = null,
+                )
             }
             .launchIn(viewModelScope)
     }
 
-    private var lastKnownSession: String? = null
+    fun setStudentId(value: String) {
+        val trimmed = value.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch { prefs.setStudentId(trimmed) }
+    }
 
     fun startScan() {
         local.value = local.value.copy(scanRequested = true)
-        viewModelScope.launch {
-            val threshold = uiState.value.rssiThreshold
-            BleScannerService.start(getApplication(), threshold)
-        }
+        viewModelScope.launch { BleScannerService.start(getApplication(), uiState.value.rssiThreshold) }
     }
 
     fun stopScan() {
@@ -104,22 +131,41 @@ class StudentViewModel(app: Application) : AndroidViewModel(app) {
         val clamped = value.coerceIn(MIN_THRESHOLD, MAX_THRESHOLD)
         viewModelScope.launch {
             prefs.setRssiThreshold(clamped)
-            // Apply live if a scan is running.
-            if (local.value.scanRequested) {
-                BleScannerService.start(getApplication(), clamped)
-            }
+            if (local.value.scanRequested) BleScannerService.start(getApplication(), clamped)
         }
     }
 
     fun confirmPresence() {
         val state = uiState.value
-        if (state.presenceConfirmed || state.confirmInFlight || state.detectedSessionId == null) return
-        local.value = local.value.copy(confirmInFlight = true)
-        // TODO(Module 4/5): POST student_id + session_id + timestamp to the backend.
-        local.value = local.value.copy(confirmInFlight = false, presenceConfirmed = true)
+        val studentId = state.studentId
+        val sessionId = state.detectedSessionId
+        if (studentId.isNullOrBlank() || sessionId == null) return
+        if (state.presenceConfirmed || state.confirmInFlight) return
+
+        local.value = local.value.copy(confirmInFlight = true, confirmError = null)
+        viewModelScope.launch {
+            when (val result = repo.confirm(studentId, sessionId, System.currentTimeMillis())) {
+                is ConfirmResult.Success -> local.value = local.value.copy(
+                    confirmInFlight = false,
+                    presenceConfirmed = true,
+                    confirmedAtMillis = result.confirmation.timestampMillis,
+                )
+
+                ConfirmResult.AlreadyConfirmed -> local.value = local.value.copy(
+                    confirmInFlight = false,
+                    presenceConfirmed = true,
+                )
+
+                is ConfirmResult.Failed -> local.value = local.value.copy(
+                    confirmInFlight = false,
+                    confirmError = result.reason,
+                )
+            }
+        }
     }
 
     fun dismissError() {
+        local.value = local.value.copy(confirmError = null)
         if (ScannerStatusBus.status.value is ScannerStatus.Error) {
             ScannerStatusBus.update(ScannerStatus.Idle)
         }
