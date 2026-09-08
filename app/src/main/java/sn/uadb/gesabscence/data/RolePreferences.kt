@@ -27,6 +27,10 @@ class RolePreferences(private val context: Context) {
 
     val studentId: Flow<String?> = context.dataStore.data.map { it[KEY_STUDENT_ID] }
 
+    /** Teacher-side identity, used to open/close sessions in Firestore. */
+    val teacherId: Flow<String?> = context.dataStore.data.map { it[KEY_TEACHER_ID] }
+    val classId: Flow<String?> = context.dataStore.data.map { it[KEY_CLASS_ID] }
+
     val rssiThreshold: Flow<Int> = context.dataStore.data.map { it[KEY_RSSI_THRESHOLD] ?: DEFAULT_RSSI }
 
     suspend fun setRole(role: AppRole) {
@@ -41,6 +45,13 @@ class RolePreferences(private val context: Context) {
         context.dataStore.edit { it[KEY_STUDENT_ID] = id }
     }
 
+    suspend fun setTeacherIdentity(teacherId: String, classId: String) {
+        context.dataStore.edit {
+            it[KEY_TEACHER_ID] = teacherId
+            it[KEY_CLASS_ID] = classId
+        }
+    }
+
     suspend fun setRssiThreshold(value: Int) {
         context.dataStore.edit { it[KEY_RSSI_THRESHOLD] = value }
     }
@@ -49,6 +60,8 @@ class RolePreferences(private val context: Context) {
         const val DEFAULT_RSSI = -70
         private val KEY_ROLE = stringPreferencesKey("role")
         private val KEY_STUDENT_ID = stringPreferencesKey("student_id")
+        private val KEY_TEACHER_ID = stringPreferencesKey("teacher_id")
+        private val KEY_CLASS_ID = stringPreferencesKey("class_id")
         private val KEY_RSSI_THRESHOLD = androidx.datastore.preferences.core.intPreferencesKey("rssi_threshold")
     }
 }

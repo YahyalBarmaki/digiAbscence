@@ -15,9 +15,9 @@ import sn.uadb.gesabscence.ble.BleScannerService
 import sn.uadb.gesabscence.ble.ScannerStatus
 import sn.uadb.gesabscence.ble.ScannerStatusBus
 import sn.uadb.gesabscence.data.ConfirmResult
-import sn.uadb.gesabscence.data.LocalPresenceRepository
-import sn.uadb.gesabscence.data.PresenceRepository
+import sn.uadb.gesabscence.data.PresenceRepositoryProvider
 import sn.uadb.gesabscence.data.RolePreferences
+import sn.uadb.gesabscence.data.SyncingPresenceRepository
 
 data class StudentUiState(
     val studentId: String? = null,
@@ -47,7 +47,7 @@ data class StudentUiState(
 class StudentViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = RolePreferences(app)
-    private val repo: PresenceRepository = LocalPresenceRepository(app)
+    private val repo: SyncingPresenceRepository = PresenceRepositoryProvider.create(app)
 
     private data class Local(
         val scanRequested: Boolean = false,
@@ -108,6 +108,9 @@ class StudentViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
             .launchIn(viewModelScope)
+
+        // Push any confirmations captured while offline.
+        viewModelScope.launch { runCatching { repo.flushOutbox() } }
     }
 
     fun setStudentId(value: String) {

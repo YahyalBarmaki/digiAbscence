@@ -19,6 +19,11 @@
     <string name="teacher_starting">Démarrage de la diffusion…</string>
     <string name="teacher_session_label">Session active</string>
     <string name="teacher_advertising_hint">Les élèves à proximité peuvent maintenant confirmer leur présence.</string>
+    <string name="teacher_session_synced">Session enregistrée sur le serveur.</string>
+    <string name="teacher_identity_label">Professeur &amp; classe</string>
+    <string name="teacher_identity_teacher_hint">Identifiant professeur</string>
+    <string name="teacher_identity_class_hint">Identifiant de la classe</string>
+    <string name="teacher_identity_hint_missing">Renseignez professeur et classe pour enregistrer la session et clôturer l\'appel côté serveur.</string>
     <string name="notif_advertising_text">Diffusion de la session %1$s en Bluetooth</string>
     <string name="dismiss">OK</string>
 

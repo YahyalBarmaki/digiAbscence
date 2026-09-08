@@ -1,0 +1,39 @@
+rules_version = "2";
+
+// gesAbsence — le POC écrit UNIQUEMENT via les Cloud Functions (Admin SDK,
+// qui contourne ces règles). Côté client :
+//  - aucune écriture directe autorisée sur sessions / presences / students ;
+//  - lecture réservée aux utilisateurs authentifiés (tableau de bord, Module 7).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /students/{studentId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /presences/{presenceId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Tout le reste est refusé.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

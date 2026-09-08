@@ -76,10 +76,14 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.datastore.preferences)
 
-    // Firebase — wired in Module 5. Safe to keep declared now.
+    // Firebase — backend wiring (Module 5). Active only when a real
+    // google-services.json is present; otherwise the app runs offline
+    // against LocalPresenceRepository.
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.functions)
     implementation(libs.firebase.messaging)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

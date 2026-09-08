@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "presences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "sessionId", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "presences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "classId", "order": "ASCENDING"},
+        {"fieldPath": "recordedAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "autoCloseAt", "order": "ASCENDING"}
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
